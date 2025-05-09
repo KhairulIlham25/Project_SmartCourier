@@ -23,7 +23,7 @@ pygame.font.init()
 font = pygame.font.SysFont("Arial", 24, bold=True)
 
 def load_map():
-    file_path = filedialog.askopenfilename(filetypes=[("Image files", ".png;.jpg;*.jpeg")])
+    file_path = filedialog.askopenfilename(filetypes=[("Image files", "*.png;*.jpg;*.jpeg")])
     return pygame.image.load(file_path) if file_path else None
 
 def is_road(color):
@@ -73,7 +73,7 @@ def a_star(start, goal, map_surface):
     return []
 
 class Courier:
-    def _init_(self, x, y):
+    def __init__(self, x, y):
         self.x, self.y = x, y
         self.path, self.moving = [], False
         self.angle = 0
@@ -164,5 +164,5 @@ def main():
 
     pygame.quit()
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     main()
