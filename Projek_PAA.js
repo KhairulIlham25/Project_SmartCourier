@@ -11,7 +11,7 @@ let destination = null;
 let path = [];
 let courier = { x: 0, y: 0, path: [], angle: 0 };
 let moving = false;
-let speedDelay = 8;
+let speedDelay = 15; // <== DIPERLAMBAT
 let frameCounter = 0;
 let lastPath = [];
 let imageInput = document.getElementById("imageInput");
@@ -145,7 +145,7 @@ function loadMap() {
       for (let y = 0; y < ROWS; y++) {
         for (let x = 0; x < COLS; x++) {
           const index = (y * COLS + x) * 4;
-          const brightness = imageData[index]; // grayscale
+          const brightness = imageData[index];
           grid[y][x] = brightness < 128 ? 0 : 1;
         }
       }
@@ -162,6 +162,8 @@ function randomize() {
   courier = { x: start.x, y: start.y, path: [...path], angle: 0 };
   lastPath = [...path];
   moving = false;
+
+
 }
 
 function startCourier() {
