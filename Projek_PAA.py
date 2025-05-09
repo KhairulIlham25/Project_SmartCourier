@@ -98,8 +98,12 @@ class Courier:
         pygame.draw.polygon(screen, GREEN, [front, left, right])
 
 def draw_flag(x, y, color):
+    # Tiang bendera
     pygame.draw.rect(screen, BLACK, (x, y, 5, 20))  # Tiang bendera
-    pygame.draw.polygon(screen, color, [(x + 5, y), (x + 20, y + 5), (x + 5, y + 10)])  # Bendera
+    
+    # Bendera berbentuk segitiga
+    pygame.draw.polygon(screen, color, [(x + 5, y), (x + 20, y + 5), (x + 5, y + 10)])  # Bendera segitiga
+
 
 def draw_button(text, x, y, width, height):
     mouse_x, mouse_y = pygame.mouse.get_pos()
