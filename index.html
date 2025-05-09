@@ -11,16 +11,19 @@
       background: #f0f0f0;
       text-align: center;
     }
+
     canvas {
       display: block;
       margin: 20px auto;
       background: #fff;
       border: 2px solid #ccc;
     }
+
     .controls {
       margin-bottom: 10px;
     }
-    button {
+
+    button, .custom-file-upload {
       padding: 10px 16px;
       margin: 5px;
       border: none;
@@ -30,19 +33,21 @@
       font-weight: bold;
       cursor: pointer;
     }
-    button:hover {
+
+    button:hover, .custom-file-upload:hover {
       background-color: #0056b3;
     }
+
     input[type="file"] {
-      margin: 10px;
+      display: none;
     }
   </style>
 </head>
 <body>
   <h1>Smart Courier</h1>
   <div class="controls">
-    <input type="file" id="imageInput" accept="image/*">
-    <button onclick="loadMap()">Load Peta</button>
+    <label for="imageInput" class="custom-file-upload">Choose Map</label>
+    <input type="file" id="imageInput" accept="image/*" onchange="loadMap()" />
     <button onclick="randomize()">Acak Posisi</button>
     <button onclick="startCourier()">Mulai</button>
     <button onclick="pauseCourier()">Berhenti</button>
@@ -50,7 +55,6 @@
   </div>
   <canvas id="gameCanvas" width="1000" height="1000"></canvas>
 
-  <!-- Hubungkan ke file JS eksternal -->
   <script src="main.js"></script>
 </body>
 </html>
