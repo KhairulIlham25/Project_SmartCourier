@@ -125,6 +125,7 @@ def main():
     start = (100, 100)
     destination = (500, 500)
     buttons = {}
+    last_path = []  # Untuk simpan jalur terakhir
 
     running = True
     while running:
@@ -132,12 +133,12 @@ def main():
         if map_surface:
             screen.blit(map_surface, (0, 0))
 
-        # Tombol-tombol
+        # Tombol
         buttons["load"] = draw_button("Load Peta", 10, 10, 150, 50)
         buttons["random"] = draw_button("Acak Posisi", 170, 10, 160, 50)
         buttons["start"] = draw_button("Mulai", 340, 10, 100, 50)
         buttons["stop"] = draw_button("Berhenti", 450, 10, 120, 50)
-        buttons["reset"] = draw_button("Reset", 580, 10, 100, 50)
+        buttons["replay"] = draw_button("Replay", 580, 10, 160, 50)
 
         draw_flag(*start, YELLOW)
         draw_flag(*destination, RED)
@@ -148,29 +149,24 @@ def main():
                 running = False
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if buttons["load"].collidepoint(event.pos):
-                    print("Klik Load Peta")
                     map_surface = load_map()
                 elif buttons["random"].collidepoint(event.pos) and map_surface:
-                    print("Klik Acak Posisi")
                     start = random_position(map_surface)
                     destination = random_position(map_surface)
                     courier.x, courier.y = start
-                    courier.path = a_star(start, destination, map_surface)
+                    path = a_star(start, destination, map_surface)
+                    courier.path = path
+                    last_path = path.copy()
                     courier.moving = False
                 elif buttons["start"].collidepoint(event.pos):
-                    print("Klik Mulai")
                     courier.moving = True
                 elif buttons["stop"].collidepoint(event.pos):
-                    print("Klik Stop")
                     courier.moving = False
-                elif buttons["reset"].collidepoint(event.pos):
-                    print("Klik Reset")
-                    map_surface = None
-                    start = (100, 100)
-                    destination = (500, 500)
-                    courier.x, courier.y = start
-                    courier.path = []
-                    courier.moving = False
+                elif buttons["replay"].collidepoint(event.pos):
+                    if last_path:
+                        courier.x, courier.y = start
+                        courier.path = last_path.copy()
+                        courier.moving = True
 
         if courier.moving:
             courier.move()
@@ -181,5 +177,5 @@ def main():
     pygame.quit()
     print("Program selesai!")
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     main()
