@@ -1,14 +1,18 @@
 import pygame
 import random
-from tkinter import filedialog
 from queue import PriorityQueue
 import math
+from tkinter import Tk
+from tkinter.filedialog import askopenfilename
+from PIL import Image
 
 # Inisialisasi Pygame
 pygame.init()
 
-# Ukuran layar
-SCREEN_WIDTH, SCREEN_HEIGHT = 1000, 700
+# Ukuran grid
+GRID_SIZE = 20
+COLS, ROWS = 50, 30
+SCREEN_WIDTH, SCREEN_HEIGHT = COLS * GRID_SIZE, ROWS * GRID_SIZE
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Smart Courier")
 
@@ -19,39 +23,41 @@ WHITE, GRAY, YELLOW, RED, BLACK, BLUE, LIGHT_GRAY, GREEN = (
 )
 
 # Font
-pygame.font.init()
 font = pygame.font.SysFont("Arial", 24, bold=True)
 
-def load_map():
-    file_path = filedialog.askopenfilename(filetypes=[("Image files", ".png;.jpg;*.jpeg")])
-    return pygame.image.load(file_path) if file_path else None
+# Grid default: semua tembok (putih)
+grid_map = [[1 for _ in range(COLS)] for _ in range(ROWS)]
 
-def is_road(color):
-    return color[:3] == GRAY
+def load_image_map():
+    Tk().withdraw()
+    file_path = askopenfilename(filetypes=[("Image Files", "*.png;*.jpg;*.jpeg;*.bmp")])
+    if file_path:
+        image = Image.open(file_path).convert("L")
+        image = image.resize((COLS, ROWS))
+        global grid_map
+        grid_map = []
+        for y in range(ROWS):
+            row = []
+            for x in range(COLS):
+                pixel = image.getpixel((x, y))
+                row.append(0 if pixel < 128 else 1)
+            grid_map.append(row)
 
-def is_safe_road(x, y, map_surface):
-    try:
-        if not is_road(map_surface.get_at((x, y))):
-            return False
-        for dx in [-5, 0, 5]:
-            for dy in [-5, 0, 5]:
-                if not is_road(map_surface.get_at((x + dx, y + dy))):
-                    return False
-        return True
-    except IndexError:
-        return False
+def is_road(x, y):
+    col, row = x // GRID_SIZE, y // GRID_SIZE
+    if 0 <= col < COLS and 0 <= row < ROWS:
+        return grid_map[row][col] == 0
+    return False
 
-def a_star(start, goal, map_surface):
-    if not map_surface:
-        return []
-    
+def a_star(start, goal):
     def heuristic(a, b):
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
-    
+
     open_set = PriorityQueue()
     open_set.put((0, start))
-    came_from, g_score = {}, {start: 0}
-    
+    came_from = {}
+    g_score = {start: 0}
+
     while not open_set.empty():
         _, current = open_set.get()
         if current == goal:
@@ -60,22 +66,24 @@ def a_star(start, goal, map_surface):
                 path.append(current)
                 current = came_from[current]
             return path[::-1]
-        
-        for dx, dy in [(-5, 0), (5, 0), (0, -5), (0, 5)]:
+
+        for dx, dy in [(-GRID_SIZE, 0), (GRID_SIZE, 0), (0, -GRID_SIZE), (0, GRID_SIZE)]:
             neighbor = (current[0] + dx, current[1] + dy)
             if 0 <= neighbor[0] < SCREEN_WIDTH and 0 <= neighbor[1] < SCREEN_HEIGHT:
-                if is_safe_road(neighbor[0], neighbor[1], map_surface):
+                if is_road(neighbor[0], neighbor[1]):
                     tentative_g_score = g_score[current] + 1
                     if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
                         came_from[neighbor] = current
                         g_score[neighbor] = tentative_g_score
-                        open_set.put((tentative_g_score + heuristic(neighbor, goal), neighbor))
+                        f_score = tentative_g_score + heuristic(neighbor, goal)
+                        open_set.put((f_score, neighbor))
     return []
 
 class Courier:
-    def _init_(self, x, y):
+    def __init__(self, x, y):
         self.x, self.y = x, y
-        self.path, self.moving = [], False
+        self.path = []
+        self.moving = False
         self.angle = 0
 
     def move(self):
@@ -87,19 +95,21 @@ class Courier:
                 self.angle = math.degrees(math.atan2(-dy, dx))
 
     def draw(self):
-        length = 15
-        width = 10
+        center_x = self.x + GRID_SIZE // 2
+        center_y = self.y + GRID_SIZE // 2
+        length = 10
+        width = 8
         angle_rad = math.radians(self.angle)
-        
-        front = (self.x + length * math.cos(angle_rad), self.y - length * math.sin(angle_rad))
-        left = (self.x + width * math.cos(angle_rad + 2.3), self.y - width * math.sin(angle_rad + 2.3))
-        right = (self.x + width * math.cos(angle_rad - 2.3), self.y - width * math.sin(angle_rad - 2.3))
-        
+        front = (center_x + length * math.cos(angle_rad), center_y - length * math.sin(angle_rad))
+        left = (center_x + width * math.cos(angle_rad + 2.3), center_y - width * math.sin(angle_rad + 2.3))
+        right = (center_x + width * math.cos(angle_rad - 2.3), center_y - width * math.sin(angle_rad - 2.3))
         pygame.draw.polygon(screen, GREEN, [front, left, right])
 
 def draw_flag(x, y, color):
-    pygame.draw.rect(screen, BLACK, (x, y, 5, 20))
-    pygame.draw.polygon(screen, color, [(x + 5, y), (x + 20, y + 5), (x + 5, y + 10)])
+    grid_x = x + GRID_SIZE // 2
+    grid_y = y + GRID_SIZE // 2
+    pygame.draw.rect(screen, BLACK, (grid_x, grid_y - 10, 3, 20))
+    pygame.draw.polygon(screen, color, [(grid_x + 3, grid_y - 10), (grid_x + 13, grid_y - 5), (grid_x + 3, grid_y)])
 
 def draw_button(text, x, y, width, height):
     mouse_x, mouse_y = pygame.mouse.get_pos()
@@ -110,72 +120,90 @@ def draw_button(text, x, y, width, height):
     screen.blit(text_surface, text_rect)
     return pygame.Rect(x, y, width, height)
 
-def random_position(map_surface):
-    if not map_surface:
-        return (100, 100)
-    positions = [(x, y) for x in range(0, SCREEN_WIDTH, 5) for y in range(0, SCREEN_HEIGHT, 5)
-                 if is_safe_road(x, y, map_surface)]
-    return random.choice(positions) if positions else (100, 100)
+def random_position():
+    positions = [(x * GRID_SIZE, y * GRID_SIZE)
+                 for x in range(COLS) for y in range(ROWS)
+                 if grid_map[y][x] == 0]
+    return random.choice(positions) if positions else (0, 0)
+
+def draw_map():
+    for y in range(ROWS):
+        for x in range(COLS):
+            rect = pygame.Rect(x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE)
+            color = WHITE if grid_map[y][x] == 1 else GRAY
+            pygame.draw.rect(screen, color, rect)
 
 def main():
-    print("Program dimulai!")
-
     clock = pygame.time.Clock()
-    map_surface, courier = None, Courier(100, 100)
-    start = (100, 100)
-    destination = (500, 500)
+    start = random_position()
+    destination = random_position()
+    courier = Courier(*start)
+    path = a_star(start, destination)
+    courier.path = path
+    last_path = path.copy()
     buttons = {}
-    last_path = []  # Untuk simpan jalur terakhir
-
+    speed_delay = 5  # Default kecepatan
+    frame_counter = 0
     running = True
+
     while running:
         screen.fill(WHITE)
-        if map_surface:
-            screen.blit(map_surface, (0, 0))
+        draw_map()
 
-        # Tombol
-        buttons["load"] = draw_button("Load Peta", 10, 10, 150, 50)
-        buttons["random"] = draw_button("Acak Posisi", 170, 10, 160, 50)
-        buttons["start"] = draw_button("Mulai", 340, 10, 100, 50)
-        buttons["stop"] = draw_button("Berhenti", 450, 10, 120, 50)
-        buttons["replay"] = draw_button("Replay", 580, 10, 160, 50)
+        button_y = 10
+        button_w = 160
+        button_h = 50
+        buttons["load_map"] = draw_button("Load Peta", 10, button_y, button_w, button_h)
+        buttons["random_pos"] = draw_button("Acak Posisi", 180, button_y, button_w, button_h)
+        buttons["start"] = draw_button("Mulai", 350, button_y, 100, button_h)
+        buttons["replay"] = draw_button("Replay", 460, button_y, 120, button_h)
 
-        draw_flag(*start, YELLOW)
-        draw_flag(*destination, RED)
+        draw_flag(start[0], start[1], YELLOW)
+        draw_flag(destination[0], destination[1], RED)
         courier.draw()
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             if event.type == pygame.MOUSEBUTTONDOWN:
-                if buttons["load"].collidepoint(event.pos):
-                    map_surface = load_map()
-                elif buttons["random"].collidepoint(event.pos) and map_surface:
-                    start = random_position(map_surface)
-                    destination = random_position(map_surface)
-                    courier.x, courier.y = start
-                    path = a_star(start, destination, map_surface)
+                if buttons["load_map"].collidepoint(event.pos):
+                    load_image_map()
+                    start = random_position()
+                    destination = random_position()
+                    courier = Courier(*start)
+                    path = a_star(start, destination)
                     courier.path = path
                     last_path = path.copy()
                     courier.moving = False
+
+                elif buttons["random_pos"].collidepoint(event.pos):
+                    start = random_position()
+                    destination = random_position()
+                    courier = Courier(*start)
+                    path = a_star(start, destination)
+                    courier.path = path
+                    last_path = path.copy()
+                    courier.moving = False
+
                 elif buttons["start"].collidepoint(event.pos):
                     courier.moving = True
-                elif buttons["stop"].collidepoint(event.pos):
-                    courier.moving = False
+
                 elif buttons["replay"].collidepoint(event.pos):
                     if last_path:
-                        courier.x, courier.y = start
+                        courier = Courier(*start)
                         courier.path = last_path.copy()
                         courier.moving = True
 
         if courier.moving:
-            courier.move()
+            frame_counter += 1
+            if frame_counter >= speed_delay:
+                courier.move()
+                frame_counter = 0
 
         pygame.display.flip()
         clock.tick(30)
 
     pygame.quit()
-    print("Program selesai!")
 
 if __name__ == "__main__":
     main()
