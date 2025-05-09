@@ -21,8 +21,6 @@ function drawGrid() {
     for (let x = 0; x < COLS; x++) {
       ctx.fillStyle = grid[y][x] === 1 ? "#fff" : "#999";
       ctx.fillRect(x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE);
-      ctx.strokeStyle = "#ccc";
-      ctx.strokeRect(x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE);
     }
   }
 }
