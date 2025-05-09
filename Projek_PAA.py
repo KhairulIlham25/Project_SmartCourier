@@ -23,7 +23,7 @@ pygame.font.init()
 font = pygame.font.SysFont("Arial", 24, bold=True)
 
 def load_map():
-    file_path = filedialog.askopenfilename(filetypes=[("Image files", "*.png;*.jpg;*.jpeg")])
+    file_path = filedialog.askopenfilename(filetypes=[("Image files", ".png;.jpg;*.jpeg")])
     return pygame.image.load(file_path) if file_path else None
 
 def is_road(color):
@@ -73,7 +73,7 @@ def a_star(start, goal, map_surface):
     return []
 
 class Courier:
-    def __init__(self, x, y):
+    def _init_(self, x, y):
         self.x, self.y = x, y
         self.path, self.moving = [], False
         self.angle = 0
@@ -98,12 +98,8 @@ class Courier:
         pygame.draw.polygon(screen, GREEN, [front, left, right])
 
 def draw_flag(x, y, color):
-    # Tiang bendera
-    pygame.draw.rect(screen, BLACK, (x, y, 5, 20))  # Tiang bendera
-    
-    # Bendera berbentuk segitiga
-    pygame.draw.polygon(screen, color, [(x + 5, y), (x + 20, y + 5), (x + 5, y + 10)])  # Bendera segitiga
-
+    pygame.draw.rect(screen, BLACK, (x, y, 5, 20))
+    pygame.draw.polygon(screen, color, [(x + 5, y), (x + 20, y + 5), (x + 5, y + 10)])
 
 def draw_button(text, x, y, width, height):
     mouse_x, mouse_y = pygame.mouse.get_pos()
@@ -122,6 +118,8 @@ def random_position(map_surface):
     return random.choice(positions) if positions else (100, 100)
 
 def main():
+    print("Program dimulai!")
+
     clock = pygame.time.Clock()
     map_surface, courier = None, Courier(100, 100)
     start = (100, 100)
@@ -133,12 +131,14 @@ def main():
         screen.fill(WHITE)
         if map_surface:
             screen.blit(map_surface, (0, 0))
-        
+
+        # Tombol-tombol
         buttons["load"] = draw_button("Load Peta", 10, 10, 150, 50)
         buttons["random"] = draw_button("Acak Posisi", 170, 10, 160, 50)
         buttons["start"] = draw_button("Mulai", 340, 10, 100, 50)
         buttons["stop"] = draw_button("Berhenti", 450, 10, 120, 50)
-        
+        buttons["reset"] = draw_button("Reset", 580, 10, 100, 50)
+
         draw_flag(*start, YELLOW)
         draw_flag(*destination, RED)
         courier.draw()
@@ -148,25 +148,38 @@ def main():
                 running = False
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if buttons["load"].collidepoint(event.pos):
+                    print("Klik Load Peta")
                     map_surface = load_map()
                 elif buttons["random"].collidepoint(event.pos) and map_surface:
+                    print("Klik Acak Posisi")
                     start = random_position(map_surface)
                     destination = random_position(map_surface)
                     courier.x, courier.y = start
                     courier.path = a_star(start, destination, map_surface)
                     courier.moving = False
                 elif buttons["start"].collidepoint(event.pos):
+                    print("Klik Mulai")
                     courier.moving = True
                 elif buttons["stop"].collidepoint(event.pos):
+                    print("Klik Stop")
                     courier.moving = False
-        
+                elif buttons["reset"].collidepoint(event.pos):
+                    print("Klik Reset")
+                    map_surface = None
+                    start = (100, 100)
+                    destination = (500, 500)
+                    courier.x, courier.y = start
+                    courier.path = []
+                    courier.moving = False
+
         if courier.moving:
             courier.move()
-        
+
         pygame.display.flip()
         clock.tick(30)
 
     pygame.quit()
+    print("Program selesai!")
 
-if __name__ == "__main__":
+if _name_ == "_main_":
     main()
