@@ -9,7 +9,7 @@ let grid = Array.from({ length: ROWS }, () => Array(COLS).fill(1));
 let start = null;
 let destination = null;
 let path = [];
-let courier = { x: 0, y: 0, path: [], angle: 0 };
+let courier = { x: 0, y: 0, path: [], angle: 0, status: "forward" };
 let moving = false;
 let speedDelay = 15;
 let frameCounter = 0;
@@ -129,7 +129,7 @@ function loop() {
       courier.y = next.y;
       frameCounter = 0;
 
-      // Hanya berhenti setelah sampai tujuan (tidak kembali ke start)
+      // Hentikan saat path habis
       if (courier.path.length === 0) {
         moving = false;
       }
@@ -173,14 +173,23 @@ function randomize() {
   start = randomPosition();
   destination = randomPosition();
   path = aStar(start, destination);
-  courier = { x: start.x, y: start.y, path: [...path], angle: 0 };
+  courier = { x: start.x, y: start.y, path: [...path], angle: 0, status: "forward" };
   lastPath = [...path];
   moving = false;
 }
 
 function startCourier() {
-  if (lastPath.length > 0) {
-    courier.path = [...lastPath];
+  if (courier.status === "return" && courier.x === start.x && courier.y === start.y) {
+    courier = {
+      x: start.x,
+      y: start.y,
+      path: [...lastPath],
+      angle: 0,
+      status: "forward"
+    };
+  }
+
+  if (courier.path.length > 0 && courier.status === "forward") {
     moving = true;
   }
 }
@@ -191,6 +200,26 @@ function pauseCourier() {
 
 function replayCourier() {
   if (!start || !destination || lastPath.length === 0) return;
-  courier = { x: start.x, y: start.y, path: [...lastPath], angle: 0 };
+  courier = { x: start.x, y: start.y, path: [...lastPath], angle: 0, status: "forward" };
   moving = true;
+}
+
+function returnToStart() {
+  if (!start || lastPath.length === 0) return;
+
+  const currentPos = { x: courier.x, y: courier.y };
+  const currentIndex = lastPath.findIndex(p => p.x === currentPos.x && p.y === currentPos.y);
+
+  if (currentIndex !== -1) {
+    const sliced = lastPath.slice(0, currentIndex + 1);
+    const backPath = [...sliced.reverse()];
+
+    const lastBackStep = backPath[backPath.length - 1];
+    if (!(lastBackStep.x === start.x && lastBackStep.y === start.y)) {
+      backPath.push({ x: start.x, y: start.y });
+    }
+
+    courier = { x: currentPos.x, y: currentPos.y, path: backPath, angle: 0, status: "return" };
+    moving = true;
+  }
 }
