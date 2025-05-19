@@ -11,10 +11,11 @@ let destination = null;
 let path = [];
 let courier = { x: 0, y: 0, path: [], angle: 0 };
 let moving = false;
-let speedDelay = 15; // <== DIPERLAMBAT
+let speedDelay = 15;
 let frameCounter = 0;
 let lastPath = [];
 let imageInput = document.getElementById("imageInput");
+let mapLoaded = false;
 
 function drawGrid() {
   for (let y = 0; y < ROWS; y++) {
@@ -82,6 +83,7 @@ function aStar(start, goal) {
 }
 
 function drawCourier() {
+  if (!start || !destination) return; // ⛔ Jangan gambar kurir kalau belum ada posisi
   const centerX = courier.x * GRID_SIZE + GRID_SIZE / 2;
   const centerY = courier.y * GRID_SIZE + GRID_SIZE / 2;
   const angle = courier.angle;
@@ -125,8 +127,9 @@ function loop() {
       frameCounter = 0;
     }
   }
-  drawCourier();
+  if (start && destination) drawCourier(); // ✅ Gambar kurir hanya jika posisi valid
 }
+
 loop();
 
 function loadMap() {
@@ -149,6 +152,7 @@ function loadMap() {
           grid[y][x] = brightness < 128 ? 0 : 1;
         }
       }
+      mapLoaded = true;
     };
     img.src = e.target.result;
   };
@@ -156,14 +160,13 @@ function loadMap() {
 }
 
 function randomize() {
+  if (!mapLoaded) return;
   start = randomPosition();
   destination = randomPosition();
   path = aStar(start, destination);
   courier = { x: start.x, y: start.y, path: [...path], angle: 0 };
   lastPath = [...path];
   moving = false;
-
-
 }
 
 function startCourier() {
@@ -175,6 +178,7 @@ function pauseCourier() {
 }
 
 function replayCourier() {
+  if (!start || !destination || lastPath.length === 0) return;
   courier = { x: start.x, y: start.y, path: [...lastPath], angle: 0 };
   moving = true;
 }
