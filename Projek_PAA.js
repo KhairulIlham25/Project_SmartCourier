@@ -43,11 +43,13 @@ function heuristic(a, b) {
 function aStar(start, goal) {
   const openSet = [start];
   const cameFrom = {};
-  const gScore = { [`${start.x},${start.y}`]: 0 };
+  const gScore = {};
+  gScore[`${start.x},${start.y}`] = 0;
 
   while (openSet.length) {
     openSet.sort((a, b) =>
-      (gScore[`${a.x},${a.y}`] + heuristic(a, goal)) - (gScore[`${b.x},${b.y}`] + heuristic(b, goal))
+      (gScore[`${a.x},${a.y}`] + heuristic(a, goal)) -
+      (gScore[`${b.x},${b.y}`] + heuristic(b, goal))
     );
     const current = openSet.shift();
     if (current.x === goal.x && current.y === goal.y) {
@@ -69,7 +71,7 @@ function aStar(start, goal) {
       ) {
         const tentativeG = gScore[`${current.x},${current.y}`] + 1;
         if (
-          !(`${neighbor.x},${neighbor.y}` in gScore) ||
+          !( `${neighbor.x},${neighbor.y}` in gScore ) ||
           tentativeG < gScore[`${neighbor.x},${neighbor.y}`]
         ) {
           cameFrom[`${neighbor.x},${neighbor.y}`] = current;
@@ -83,7 +85,7 @@ function aStar(start, goal) {
 }
 
 function drawCourier() {
-  if (!start || !destination) return; // ⛔ Jangan gambar kurir kalau belum ada posisi
+  if (!start || !destination) return;
   const centerX = courier.x * GRID_SIZE + GRID_SIZE / 2;
   const centerY = courier.y * GRID_SIZE + GRID_SIZE / 2;
   const angle = courier.angle;
@@ -115,6 +117,7 @@ function loop() {
   drawGrid();
   if (start) drawFlag(start.x, start.y, "yellow");
   if (destination) drawFlag(destination.x, destination.y, "red");
+
   if (moving && courier.path.length > 0) {
     frameCounter++;
     if (frameCounter >= speedDelay) {
@@ -125,9 +128,20 @@ function loop() {
       courier.x = next.x;
       courier.y = next.y;
       frameCounter = 0;
+
+      // Setelah sampai tujuan, langsung dikembalikan ke posisi start
+      if (courier.path.length === 0) {
+        setTimeout(() => {
+          courier.x = start.x;
+          courier.y = start.y;
+          courier.angle = 0;
+          moving = false;
+        }, 200); // beri sedikit delay biar terlihat sampai dulu
+      }
     }
   }
-  if (start && destination) drawCourier(); // ✅ Gambar kurir hanya jika posisi valid
+
+  if (start && destination) drawCourier();
 }
 
 loop();
@@ -170,7 +184,10 @@ function randomize() {
 }
 
 function startCourier() {
-  moving = true;
+  if (lastPath.length > 0) {
+    courier.path = [...lastPath];
+    moving = true;
+  }
 }
 
 function pauseCourier() {
