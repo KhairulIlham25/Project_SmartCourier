@@ -1,11 +1,14 @@
 # SMART COURIER PROJECT
-Mata Kuliah: PAA
-Dosen Pengampu: Tekad Matulatan, S.T., M.Tech
+Mata Kuliah: Perancangan dan Analisis Algoritma
+Dosen Pengampu:
+Tekad Matulatan, S.Sos., S.Kom., M.Inf.Tech
+Nolan Efranda, M.Kom
+Feri Irawan, S.Kom., M.Kom
 
-Tugas Project
+# Tugas Project
 Membuat program smart courier dimana sang kurir berusaha mengantarkan paket dari satu titik (source) ke titik lainnya (destination). Pada proyek ini kode program akan menjalankan mekanisme "smart courier" dimana pengguna bisa mengunggah map kustom yang bisa dibaca oleh sistem, kemudian ketika program dijalankan ikon kurir akan bergerak dari titik awal menuju titik destinasi diatas bagian map yang dibaca sebagai jalan (RGB: ,90 ,90 ,90) tanpa melintasi bagian map lain yang bukan termasuk jalan.
 
-Anggota Kelompok:
+# Anggota Kelompok:
 Khairul Ilham (2301020111)
 Fadhillah Nanda Maulana (2301020088)
 Hilman Yazid Ilhamsyah (2301020056)
