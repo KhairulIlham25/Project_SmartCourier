@@ -129,14 +129,9 @@ function loop() {
       courier.y = next.y;
       frameCounter = 0;
 
-      // Setelah sampai tujuan, langsung dikembalikan ke posisi start
+      // Hanya berhenti setelah sampai tujuan (tidak kembali ke start)
       if (courier.path.length === 0) {
-        setTimeout(() => {
-          courier.x = start.x;
-          courier.y = start.y;
-          courier.angle = 0;
-          moving = false;
-        }, 200); // beri sedikit delay biar terlihat sampai dulu
+        moving = false;
       }
     }
   }
