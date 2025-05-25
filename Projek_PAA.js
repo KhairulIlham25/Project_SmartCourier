@@ -17,10 +17,45 @@ let lastPath = [];
 let imageInput = document.getElementById("imageInput");
 let mapLoaded = false;
 
+// Fungsi baru untuk cek rata-rata warna di cell grid
+function isRoadCell(tempCtx, startX, startY, size) {
+  const imgData = tempCtx.getImageData(startX, startY, size, size);
+  const data = imgData.data;
+  let rSum = 0, gSum = 0, bSum = 0;
+  let count = 0;
+
+  for (let i = 0; i < data.length; i += 4) {
+    rSum += data[i];
+    gSum += data[i + 1];
+    bSum += data[i + 2];
+    count++;
+  }
+
+  const rAvg = rSum / count;
+  const gAvg = gSum / count;
+  const bAvg = bSum / count;
+
+  // Toleransi warna ±5 dari 90 (warna abu-abu jalan)
+  if (
+    rAvg >= 85 && rAvg <= 95 &&
+    gAvg >= 85 && gAvg <= 95 &&
+    bAvg >= 85 && bAvg <= 95
+  ) {
+    return true;  // jalan
+  }
+  return false;   // tembok
+}
+
 function drawGrid() {
   for (let y = 0; y < ROWS; y++) {
     for (let x = 0; x < COLS; x++) {
-      ctx.fillStyle = grid[y][x] === 1 ? "#fff" : "#999";
+      if (grid[y][x] === 1) {
+        // tembok, transparent biar gambar terlihat
+        ctx.fillStyle = "rgba(255,255,255,0)";
+      } else {
+        // jalan diwarnai abu-abu transparan agar jalan terlihat jelas di atas gambar
+        ctx.fillStyle = "rgba(90,90,90,0.6)";
+      }
       ctx.fillRect(x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE);
     }
   }
@@ -89,7 +124,7 @@ function drawCourier() {
   const centerX = courier.x * GRID_SIZE + GRID_SIZE / 2;
   const centerY = courier.y * GRID_SIZE + GRID_SIZE / 2;
   const angle = courier.angle;
-  ctx.fillStyle = "green";
+  ctx.fillStyle = "#00ffff";
   ctx.beginPath();
   ctx.moveTo(centerX + 10 * Math.cos(angle), centerY + 10 * Math.sin(angle));
   ctx.lineTo(centerX + 5 * Math.cos(angle + 2.4), centerY + 5 * Math.sin(angle + 2.4));
@@ -114,7 +149,17 @@ function drawFlag(x, y, color) {
 
 function loop() {
   requestAnimationFrame(loop);
+
+  // Gambar background asli (gambar map)
+  if (mapLoaded && backgroundImage) {
+    ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+  } else {
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
   drawGrid();
+
   if (start) drawFlag(start.x, start.y, "yellow");
   if (destination) drawFlag(destination.x, destination.y, "red");
 
@@ -129,7 +174,7 @@ function loop() {
       courier.y = next.y;
       frameCounter = 0;
 
-      // Hentikan saat path habis
+      // Stop if path ended
       if (courier.path.length === 0) {
         moving = false;
       }
@@ -141,6 +186,8 @@ function loop() {
 
 loop();
 
+let backgroundImage = null;
+
 function loadMap() {
   const file = imageInput.files[0];
   if (!file) return;
@@ -148,17 +195,25 @@ function loadMap() {
   const reader = new FileReader();
   reader.onload = function (e) {
     img.onload = function () {
+      backgroundImage = img;
+
+      // Buat canvas sementara untuk proses sampling warna
       const tempCanvas = document.createElement("canvas");
-      tempCanvas.width = COLS;
-      tempCanvas.height = ROWS;
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
       const tempCtx = tempCanvas.getContext("2d");
-      tempCtx.drawImage(img, 0, 0, COLS, ROWS);
-      const imageData = tempCtx.getImageData(0, 0, COLS, ROWS).data;
+      tempCtx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      // Generate grid dari gambar dengan sampling rata-rata per GRID_SIZE x GRID_SIZE pixel
       for (let y = 0; y < ROWS; y++) {
         for (let x = 0; x < COLS; x++) {
-          const index = (y * COLS + x) * 4;
-          const brightness = imageData[index];
-          grid[y][x] = brightness < 128 ? 0 : 1;
+          const px = x * GRID_SIZE;
+          const py = y * GRID_SIZE;
+          if (isRoadCell(tempCtx, px, py, GRID_SIZE)) {
+            grid[y][x] = 0; // jalan
+          } else {
+            grid[y][x] = 1; // tembok
+          }
         }
       }
       mapLoaded = true;
@@ -170,9 +225,19 @@ function loadMap() {
 
 function randomize() {
   if (!mapLoaded) return;
-  start = randomPosition();
-  destination = randomPosition();
-  path = aStar(start, destination);
+
+  let tries = 0;
+  do {
+    start = randomPosition();
+    destination = randomPosition();
+    path = aStar(start, destination);
+    tries++;
+    if (tries > 100) {
+      alert("Gagal menemukan jalur, coba gambar lain atau periksa warna jalan!");
+      return;
+    }
+  } while (path.length === 0);
+
   courier = { x: start.x, y: start.y, path: [...path], angle: 0, status: "forward" };
   lastPath = [...path];
   moving = false;
@@ -205,21 +270,23 @@ function replayCourier() {
 }
 
 function returnToStart() {
-  if (!start || lastPath.length === 0) return;
+  if (!start || !mapLoaded) return;
 
   const currentPos = { x: courier.x, y: courier.y };
-  const currentIndex = lastPath.findIndex(p => p.x === currentPos.x && p.y === currentPos.y);
 
-  if (currentIndex !== -1) {
-    const sliced = lastPath.slice(0, currentIndex + 1);
-    const backPath = [...sliced.reverse()];
+  // Cari path balik menggunakan A*
+  const returnPath = aStar(currentPos, start);
 
-    const lastBackStep = backPath[backPath.length - 1];
-    if (!(lastBackStep.x === start.x && lastBackStep.y === start.y)) {
-      backPath.push({ x: start.x, y: start.y });
-    }
-
-    courier = { x: currentPos.x, y: currentPos.y, path: backPath, angle: 0, status: "return" };
+  if (returnPath.length > 0) {
+    courier = {
+      x: currentPos.x,
+      y: currentPos.y,
+      path: returnPath,
+      angle: 0,
+      status: "return"
+    };
     moving = true;
+  } else {
+    console.warn("Path kembali tidak ditemukan!");
   }
 }
