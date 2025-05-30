@@ -243,7 +243,12 @@ function randomize() {
   moving = false;
 }
 
+let lastAction = null; // status aksi terakhir: "forward" atau "return"
+
 function startCourier() {
+  if (!start || !destination || !mapLoaded) return;
+
+  // Kalau status return dan sudah di start, reset ke forward
   if (courier.status === "return" && courier.x === start.x && courier.y === start.y) {
     courier = {
       x: start.x,
@@ -252,30 +257,80 @@ function startCourier() {
       angle: 0,
       status: "forward"
     };
+    lastAction = "forward";
   }
 
-  if (courier.path.length > 0 && courier.status === "forward") {
-    moving = true;
+  // Kalau path kosong dan sudah sampai tujuan, jangan jalan ulang
+  if (courier.path.length === 0) {
+    if (courier.x === destination.x && courier.y === destination.y && courier.status === "forward") {
+      return;
+    }
+    // Kalau path kosong tapi belum sampai tujuan, isi ulang path (optional)
+    courier.path = [...lastPath];
+    courier.status = "forward";
   }
-}
 
-function pauseCourier() {
-  moving = false;
+  // Kalau sudah di tujuan, jangan mulai
+  if (courier.x === destination.x && courier.y === destination.y) return;
+
+  // Mulai bergerak
+  moving = true;
+  lastAction = "forward";
 }
 
 function replayCourier() {
-  if (!start || !destination || lastPath.length === 0) return;
-  courier = { x: start.x, y: start.y, path: [...lastPath], angle: 0, status: "forward" };
+  if (!start || !destination || lastPath.length === 0 || moving || !lastAction) return;
+
+  let replayPath;
+
+  if (lastAction === "forward") {
+    replayPath = [...lastPath];
+    courier = {
+      x: start.x,
+      y: start.y,
+      path: replayPath,
+      angle: 0,
+      status: "forward"
+    };
+  } else if (lastAction === "return") {
+    replayPath = [...lastPath].reverse();
+    replayPath.push({ x: start.x, y: start.y });
+
+    courier = {
+      x: destination.x,
+      y: destination.y,
+      path: replayPath,
+      angle: 0,
+      status: "return"
+    };
+  }
+
   moving = true;
 }
 
+function pauseCourier() {
+  moving = false;  // hanya pause, path tetap ada supaya bisa lanjut
+}
+
 function returnToStart() {
-  if (!start || !mapLoaded) return;
+  if (!start || !destination || !mapLoaded) return;
+
+  // Kurir belum sampai tujuan, tidak boleh kembali
+  if (courier.x !== destination.x || courier.y !== destination.y) {
+    console.warn("Kurir belum sampai tujuan. Tidak bisa kembali.");
+    return;
+  }
+
+  // Jika kurir sudah di posisi start dan statusnya return, maka jangan lakukan apa-apa
+  if (courier.status === "return" && courier.x === start.x && courier.y === start.y) {
+    return; // Tidak melakukan apa-apa
+  }
 
   const currentPos = { x: courier.x, y: courier.y };
 
-  // Cari path balik menggunakan A*
-  const returnPath = aStar(currentPos, start);
+  // Buat path balik dari lastPath yang sudah ada
+  const returnPath = [...lastPath].slice().reverse();
+  returnPath.push({ x: start.x, y: start.y });  // tambahkan titik awal di akhir
 
   if (returnPath.length > 0) {
     courier = {
@@ -286,6 +341,7 @@ function returnToStart() {
       status: "return"
     };
     moving = true;
+    lastAction = "return";
   } else {
     console.warn("Path kembali tidak ditemukan!");
   }
