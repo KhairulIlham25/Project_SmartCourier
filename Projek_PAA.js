@@ -17,6 +17,18 @@ let lastPath = [];
 let imageInput = document.getElementById("imageInput");
 let mapLoaded = false;
 
+const carImages = {
+  up: new Image(),
+  down: new Image(),
+  left: new Image(),
+  right: new Image()
+};
+
+carImages.up.src = "mobil-atas.png";
+carImages.down.src = "mobil-bawah.png";
+carImages.left.src = "mobil-kiri.png";
+carImages.right.src = "mobil-kanan.png";
+
 // Fungsi baru untuk cek rata-rata warna di cell grid
 function isRoadCell(tempCtx, startX, startY, size) {
   const imgData = tempCtx.getImageData(startX, startY, size, size);
@@ -35,7 +47,7 @@ function isRoadCell(tempCtx, startX, startY, size) {
   const gAvg = gSum / count;
   const bAvg = bSum / count;
 
-  // Sesuai RTM: jalan = warna abu-abu dengan nilai RGB antara 90 dan 150
+  // Toleransi warna ±5 dari 90 (warna abu-abu jalan)
   if (
     rAvg >= 90 && rAvg <= 150 &&
     gAvg >= 90 && gAvg <= 150 &&
@@ -121,28 +133,43 @@ function aStar(start, goal) {
 
 function drawCourier() {
   if (!start || !destination) return;
-  const centerX = courier.x * GRID_SIZE + GRID_SIZE / 2;
-  const centerY = courier.y * GRID_SIZE + GRID_SIZE / 2;
-  const angle = courier.angle;
-  ctx.fillStyle = "#00ffff";
-  ctx.beginPath();
-  ctx.moveTo(centerX + 10 * Math.cos(angle), centerY + 10 * Math.sin(angle));
-  ctx.lineTo(centerX + 5 * Math.cos(angle + 2.4), centerY + 5 * Math.sin(angle + 2.4));
-  ctx.lineTo(centerX + 5 * Math.cos(angle - 2.4), centerY + 5 * Math.sin(angle - 2.4));
-  ctx.closePath();
-  ctx.fill();
+
+  const scale = 1.6;
+  const size = GRID_SIZE * scale;
+  // Geser supaya gambar tetap center di cell grid
+  const centerX = courier.x * GRID_SIZE + (GRID_SIZE - size) / 2;
+  const centerY = courier.y * GRID_SIZE + (GRID_SIZE - size) / 2;
+
+  // Tentukan arah berdasarkan angle
+  let image;
+  const angleDeg = courier.angle * (180 / Math.PI);
+
+  if (angleDeg >= -45 && angleDeg <= 45) {
+    image = carImages.right;
+  } else if (angleDeg > 45 && angleDeg <= 135) {
+    image = carImages.down;
+  } else if (angleDeg < -45 && angleDeg >= -135) {
+    image = carImages.up;
+  } else {
+    image = carImages.left;
+  }
+
+  ctx.drawImage(image, centerX, centerY, size, size);
 }
 
 function drawFlag(x, y, color) {
+  const scale = 1.5;
   const px = x * GRID_SIZE + GRID_SIZE / 2;
   const py = y * GRID_SIZE + GRID_SIZE / 2;
+
   ctx.fillStyle = "black";
-  ctx.fillRect(px, py - 10, 3, 20);
+  ctx.fillRect(px, py - 10 * scale, 3 * scale, 20 * scale);
+
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.moveTo(px + 3, py - 10);
-  ctx.lineTo(px + 13, py - 5);
-  ctx.lineTo(px + 3, py);
+  ctx.moveTo(px + 3 * scale, py - 10 * scale);
+  ctx.lineTo(px + 13 * scale, py - 5 * scale);
+  ctx.lineTo(px + 3 * scale, py);
   ctx.closePath();
   ctx.fill();
 }
@@ -150,7 +177,7 @@ function drawFlag(x, y, color) {
 function loop() {
   requestAnimationFrame(loop);
 
-  // Gambar background asli (gambar map)
+  // Gambar background
   if (mapLoaded && backgroundImage) {
     ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
   } else {
@@ -158,15 +185,22 @@ function loop() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
-  drawGrid();
-
   if (start) drawFlag(start.x, start.y, "yellow");
   if (destination) drawFlag(destination.x, destination.y, "red");
 
   if (moving && courier.path.length > 0) {
+    const next = courier.path[0];
+
+    // Cek apakah langkah berikutnya masih di jalan (grid=0)
+    if (grid[next.y][next.x] !== 0) {
+      moving = false;
+      alert("Jalur tertutup, pergerakan dihentikan!");
+      return;
+    }
+
     frameCounter++;
     if (frameCounter >= speedDelay) {
-      const next = courier.path.shift();
+      courier.path.shift(); // hapus langkah yang sudah dilalui
       const dx = next.x - courier.x;
       const dy = next.y - courier.y;
       courier.angle = Math.atan2(dy, dx);
@@ -174,15 +208,26 @@ function loop() {
       courier.y = next.y;
       frameCounter = 0;
 
-      // Stop if path ended
       if (courier.path.length === 0) {
         moving = false;
+
+        // Kalau status return dan sudah sampai start, siap jalan forward lagi
+        if (courier.status === "return" && courier.x === start.x && courier.y === start.y) {
+          courier.status = "forward";
+          // buat path baru ke destination
+          const newPath = aStar(start, destination);
+          if (newPath.length > 0) {
+            courier.path = newPath;
+            // jangan langsung jalan, tunggu user klik start
+          }
+        }
       }
     }
   }
 
   if (start && destination) drawCourier();
 }
+
 
 loop();
 
@@ -191,8 +236,10 @@ let backgroundImage = null;
 function loadMap() {
   const file = imageInput.files[0];
   if (!file) return;
+
   const img = new Image();
   const reader = new FileReader();
+
   reader.onload = function (e) {
     img.onload = function () {
       backgroundImage = img;
@@ -204,7 +251,7 @@ function loadMap() {
       const tempCtx = tempCanvas.getContext("2d");
       tempCtx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-      // Generate grid dari gambar dengan sampling rata-rata per GRID_SIZE x GRID_SIZE pixel
+      // Generate grid dari gambar
       for (let y = 0; y < ROWS; y++) {
         for (let x = 0; x < COLS; x++) {
           const px = x * GRID_SIZE;
@@ -216,10 +263,20 @@ function loadMap() {
           }
         }
       }
+
+      // ✅ Reset status aplikasi saat peta di-load ulang
       mapLoaded = true;
+      courier = null;
+      start = null;
+      destination = null;
+      path = [];
+      lastPath = [];
+      moving = false;
     };
+
     img.src = e.target.result;
   };
+
   reader.readAsDataURL(file);
 }
 
@@ -248,35 +305,21 @@ let lastAction = null; // status aksi terakhir: "forward" atau "return"
 function startCourier() {
   if (!start || !destination || !mapLoaded) return;
 
-  // Kalau status return dan sudah di start, reset ke forward
-  if (courier.status === "return" && courier.x === start.x && courier.y === start.y) {
-    courier = {
-      x: start.x,
-      y: start.y,
-      path: [...lastPath],
-      angle: 0,
-      status: "forward"
-    };
-    lastAction = "forward";
+  // Buat path baru dari posisi kurir saat ini ke tujuan
+  const currentPos = { x: courier.x, y: courier.y };
+  const newPath = aStar(currentPos, destination);
+
+  if (newPath.length === 0) {
+    alert("Tidak dapat menemukan jalur ke tujuan dari posisi saat ini!");
+    return;
   }
 
-  // Kalau path kosong dan sudah sampai tujuan, jangan jalan ulang
-  if (courier.path.length === 0) {
-    if (courier.x === destination.x && courier.y === destination.y && courier.status === "forward") {
-      return;
-    }
-    // Kalau path kosong tapi belum sampai tujuan, isi ulang path (optional)
-    courier.path = [...lastPath];
-    courier.status = "forward";
-  }
-
-  // Kalau sudah di tujuan, jangan mulai
-  if (courier.x === destination.x && courier.y === destination.y) return;
-
-  // Mulai bergerak
+  courier.path = newPath;
+  courier.status = "forward";
   moving = true;
   lastAction = "forward";
 }
+
 
 function replayCourier() {
   if (!start || !destination || lastPath.length === 0 || moving || !lastAction) return;
@@ -315,34 +358,25 @@ function pauseCourier() {
 function returnToStart() {
   if (!start || !destination || !mapLoaded) return;
 
-  // Kurir belum sampai tujuan, tidak boleh kembali
-  if (courier.x !== destination.x || courier.y !== destination.y) {
-    console.warn("Kurir belum sampai tujuan. Tidak bisa kembali.");
+  // Jangan paksa kurir ke destinasi dulu, langsung buat path dari posisi sekarang ke start
+  const currentPos = { x: courier.x, y: courier.y };
+
+  // Buat path dari posisi sekarang ke start menggunakan aStar
+  const returnPath = aStar(currentPos, start);
+
+  if (returnPath.length === 0) {
+    console.warn("Tidak dapat membuat path kembali ke start!");
     return;
   }
 
-  // Jika kurir sudah di posisi start dan statusnya return, maka jangan lakukan apa-apa
-  if (courier.status === "return" && courier.x === start.x && courier.y === start.y) {
-    return; // Tidak melakukan apa-apa
-  }
-
-  const currentPos = { x: courier.x, y: courier.y };
-
-  // Buat path balik dari lastPath yang sudah ada
-  const returnPath = [...lastPath].slice().reverse();
-  returnPath.push({ x: start.x, y: start.y });  // tambahkan titik awal di akhir
-
-  if (returnPath.length > 0) {
-    courier = {
-      x: currentPos.x,
-      y: currentPos.y,
-      path: returnPath,
-      angle: 0,
-      status: "return"
-    };
-    moving = true;
-    lastAction = "return";
-  } else {
-    console.warn("Path kembali tidak ditemukan!");
-  }
+  // Update courier dengan path kembali, status return
+  courier = {
+    x: currentPos.x,
+    y: currentPos.y,
+    path: returnPath,
+    angle: 0,
+    status: "return"
+  };
+  moving = true;
+  lastAction = "return";
 }
