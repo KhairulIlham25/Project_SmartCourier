@@ -35,11 +35,11 @@ function isRoadCell(tempCtx, startX, startY, size) {
   const gAvg = gSum / count;
   const bAvg = bSum / count;
 
-  // Toleransi warna ±5 dari 90 (warna abu-abu jalan)
+  // Sesuai RTM: jalan = warna abu-abu dengan nilai RGB antara 90 dan 150
   if (
-    rAvg >= 85 && rAvg <= 95 &&
-    gAvg >= 85 && gAvg <= 95 &&
-    bAvg >= 85 && bAvg <= 95
+    rAvg >= 90 && rAvg <= 150 &&
+    gAvg >= 90 && gAvg <= 150 &&
+    bAvg >= 90 && bAvg <= 150
   ) {
     return true;  // jalan
   }
