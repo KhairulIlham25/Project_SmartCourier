@@ -152,7 +152,6 @@ function loop() {
   if (mapLoaded && backgroundImage) {
     ctx.drawImage(backgroundImage, 0, 0, backgroundImageWidth, backgroundImageHeight);
   }
-  drawGrid();
   if (start) drawFlag(start.x, start.y, "yellow");
   if (destination) drawFlag(destination.x, destination.y, "red");
   if (moving && courier.path.length > 0) {
@@ -206,6 +205,12 @@ function loadMap() {
         }
       }
       mapLoaded = true;
+      courier = null;
+      start = null;
+      destination = null;
+      path = [];
+      lastPath = [];
+      moving = false;
     };
     img.src = e.target.result;
   };
@@ -283,6 +288,7 @@ function replayCourier() {
 
 function pauseCourier() {
   moving = false;  
+}
 
 function returnToStart() {
   if (!start || !destination || !mapLoaded) return;
