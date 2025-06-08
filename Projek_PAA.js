@@ -18,33 +18,8 @@ let imageInput = document.getElementById("imageInput");
 let mapLoaded = false;
 let backgroundImageWidth = 0;
 let backgroundImageHeight = 0;
-
-function isRoadCell(tempCtx, startX, startY, size) {
-  const imgData = tempCtx.getImageData(startX, startY, size, size);
-  const data = imgData.data;
-  let rSum = 0, gSum = 0, bSum = 0;
-  let count = 0;
-
-  for (let i = 0; i < data.length; i += 4) {
-    rSum += data[i];
-    gSum += data[i + 1];
-    bSum += data[i + 2];
-    count++;
-  }
-
-  const rAvg = rSum / count;
-  const gAvg = gSum / count;
-  const bAvg = bSum / count;
-
-  if (
-    rAvg >= 90 && rAvg <= 150 &&
-    gAvg >= 90 && gAvg <= 150 &&
-    bAvg >= 90 && bAvg <= 150
-  ) {
-    return true;
-  }
-  return false;
-}
+let initialCourierPos = null;
+let pausedPath = [];
 
 function drawGrid() {
   for (let y = 0; y < ROWS; y++) {
@@ -118,7 +93,9 @@ function aStar(start, goal) {
 }
 
 function drawCourier() {
-  if (!start || !destination) return;
+  // Always draw courier if there's a destination
+  if (!destination) return;
+  
   const centerX = courier.x * GRID_SIZE + GRID_SIZE / 2;
   const centerY = courier.y * GRID_SIZE + GRID_SIZE / 2;
   const angle = courier.angle;
@@ -132,6 +109,9 @@ function drawCourier() {
 }
 
 function drawFlag(x, y, color) {
+  // Don't draw if flag doesn't exist
+  if ((color === "yellow" && !start) || (color === "red" && !destination)) return;
+  
   const px = x * GRID_SIZE + GRID_SIZE / 2;
   const py = y * GRID_SIZE + GRID_SIZE / 2;
   ctx.fillStyle = "black";
@@ -149,27 +129,56 @@ function loop() {
   requestAnimationFrame(loop);
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+
   if (mapLoaded && backgroundImage) {
     ctx.drawImage(backgroundImage, 0, 0, backgroundImageWidth, backgroundImageHeight);
   }
+
+  // Draw flags
   if (start) drawFlag(start.x, start.y, "yellow");
   if (destination) drawFlag(destination.x, destination.y, "red");
-  if (moving && courier.path.length > 0) {
-    frameCounter++;
-    if (frameCounter >= speedDelay) {
-      const next = courier.path.shift();
-      const dx = next.x - courier.x;
-      const dy = next.y - courier.y;
-      courier.angle = Math.atan2(dy, dx);
-      courier.x = next.x;
-      courier.y = next.y;
-      frameCounter = 0;
+
+  // Courier movement
+if (moving && courier.path.length > 0) {
+  frameCounter++;
+  if (frameCounter >= speedDelay) {
+    const next = courier.path.shift();
+    const dx = next.x - courier.x;
+    const dy = next.y - courier.y;
+    courier.angle = Math.atan2(dy, dx); // Update angle berdasarkan arah gerakan
+    courier.x = next.x;
+    courier.y = next.y;
+    frameCounter = 0;
+
       if (courier.path.length === 0) {
         moving = false;
+
+        if (courier.status === "toStart" || courier.status === "replayToStart") {
+          // Wait 1 second before moving to destination
+          setTimeout(() => {
+            // Only remove start flag when beginning movement to destination
+            start = null;
+            
+            const targetPath = lastPath.length > 0 ? lastPath : 
+                             aStar({ x: courier.x, y: courier.y }, destination);
+            
+            if (targetPath.length > 0) {
+              courier.path = targetPath;
+              courier.status = "forward";
+              moving = true;
+            } else {
+              alert("Tidak dapat menemukan jalur ke tujuan.");
+            }
+          }, 1000);
+        }
       }
     }
   }
-  if (start && destination) drawCourier();
+
+  // Always draw courier if there's a destination
+  if (destination) {
+    drawCourier();
+  }
 }
 
 loop();
@@ -177,22 +186,28 @@ loop();
 let backgroundImage = null;
 
 function loadMap() {
-  const file = imageInput.files[0];
-  if (!file) return;
-  const img = new Image();
-  const reader = new FileReader();
-  reader.onload = function (e) {
-    img.onload = function () {
+const file = imageInput.files[0];
+if (!file) return;
+const img = new Image();
+const reader = new FileReader();
+reader.onload = function (e) {
+img.onload = function () {
+      const scaleX = canvas.width / img.naturalWidth;
+      const scaleY = canvas.height / img.naturalHeight;
+      const scale = Math.min(scaleX, scaleY); // Skala proporsional (aspect ratio terjaga)
+      backgroundImageWidth = img.naturalWidth * scale;
+      backgroundImageHeight = img.naturalHeight * scale;
+      const offsetX = (canvas.width - backgroundImageWidth) / 2;
+      const offsetY = (canvas.height - backgroundImageHeight) / 2;
       backgroundImage = img;
-      backgroundImageWidth = img.naturalWidth;
-      backgroundImageHeight = img.naturalHeight;
       const tempCanvas = document.createElement("canvas");
       tempCanvas.width = canvas.width;
       tempCanvas.height = canvas.height;
       const tempCtx = tempCanvas.getContext("2d");
       tempCtx.fillStyle = "#fff";
       tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-      tempCtx.drawImage(img, 0, 0, backgroundImageWidth, backgroundImageHeight);
+      tempCtx.drawImage(img, offsetX, offsetY, backgroundImageWidth, backgroundImageHeight);
+      // Konversi gambar ke grid
       for (let y = 0; y < ROWS; y++) {
         for (let x = 0; x < COLS; x++) {
           const px = x * GRID_SIZE;
@@ -205,7 +220,7 @@ function loadMap() {
         }
       }
       mapLoaded = true;
-      courier = null;
+      courier = { x: 0, y: 0, path: [], angle: 0, status: "forward" };
       start = null;
       destination = null;
       path = [];
@@ -219,97 +234,182 @@ function loadMap() {
 
 function randomize() {
   if (!mapLoaded) return;
+
   let tries = 0;
   do {
-    start = randomPosition();
-    destination = randomPosition();
-    path = aStar(start, destination);
-    tries++;
-    if (tries > 100) {
-      alert("Gagal menemukan jalur, coba gambar lain atau periksa warna jalan!");
+    const randomCourier = randomPosition();
+    const randomStart = randomPosition();
+    const randomDestination = randomPosition();
+
+    const toStartPath = aStar(randomCourier, randomStart);
+    const toDestinationPath = aStar(randomStart, randomDestination);
+
+    if (toStartPath.length > 0 && toDestinationPath.length > 0) {
+      initialCourierPos = { x: randomCourier.x, y: randomCourier.y };
+      originalStartPosition = { x: randomStart.x, y: randomStart.y }; // Store original position
+      
+      courier = {
+        x: randomCourier.x,
+        y: randomCourier.y,
+        path: [...toStartPath],
+        angle: 0,
+        status: "toStart"
+      };
+
+      start = { x: randomStart.x, y: randomStart.y };
+      destination = { x: randomDestination.x, y: randomDestination.y };
+      lastPath = [...toDestinationPath];
+      moving = false;
       return;
     }
-  } while (path.length === 0);
-  courier = { x: start.x, y: start.y, path: [...path], angle: 0, status: "forward" };
-  lastPath = [...path];
-  moving = false;
+    tries++;
+  } while (tries < 100);
+  alert("Gagal menemukan jalur yang valid");
 }
 
-let lastAction = null; // status aksi terakhir: "forward" atau "return"
-
-function startCourier() {
-  if (!start || !destination || !mapLoaded) return;
-
-  // Buat path baru dari posisi kurir saat ini ke tujuan
-  const currentPos = { x: courier.x, y: courier.y };
-  const newPath = aStar(currentPos, destination);
-
-  if (newPath.length === 0) {
-    alert("Tidak dapat menemukan jalur ke tujuan dari posisi saat ini!");
-    return;
-  }
-
-  courier.path = newPath;
-  courier.status = "forward";
-  moving = true;
-  lastAction = "forward";
-}
-
-
-function replayCourier() {
-  if (!start || !destination || lastPath.length === 0 || moving || !lastAction) return;
-
-  let replayPath;
-
-  if (lastAction === "forward") {
-    replayPath = [...lastPath];
-    courier = {
-      x: start.x,
-      y: start.y,
-      path: replayPath,
-      angle: 0,
-      status: "forward"
-    };
-  } else if (lastAction === "return") {
-    replayPath = [...lastPath].reverse();
-    replayPath.push({ x: start.x, y: start.y });
-
-    courier = {
-      x: destination.x,
-      y: destination.y,
-      path: replayPath,
-      angle: 0,
-      status: "return"
-    };
-  }
-
-  moving = true;
-}
+let lastAction = null;
 
 function pauseCourier() {
-  moving = false;  
+  moving = false;
+  pausedPath = [...courier.path];
+  pausedPath.unshift({ 
+    x: courier.x, 
+    y: courier.y,
+    angle: courier.angle // Simpan angle saat pause
+  });
 }
 
-function returnToStart() {
-  if (!start || !destination || !mapLoaded) return;
+function startCourier() {
+  if (!destination || !mapLoaded) return;
 
-  const currentPos = { x: courier.x, y: courier.y };
-
-  const returnPath = aStar(currentPos, start);
-
-  if (returnPath.length === 0) {
-    console.warn("Tidak dapat membuat path kembali ke start!");
+  if (courier.x === destination.x && courier.y === destination.y) {
+    alert("Kurir sudah sampai di tujuan!");
     return;
   }
 
-  
+  if (moving) return;
+
+  if (pausedPath.length > 0) {
+    // Ambil angle yang disimpan jika ada
+    const firstStep = pausedPath[0];
+    if (firstStep.angle !== undefined) {
+      courier.angle = firstStep.angle;
+    }
+    
+    courier.path = pausedPath.slice(1); // Ambil path tanpa step pertama
+    
+    // Update angle jika ada langkah berikutnya
+    if (courier.path.length > 0) {
+      const next = courier.path[0];
+      const dx = next.x - courier.x;
+      const dy = next.y - courier.y;
+      courier.angle = Math.atan2(dy, dx);
+    }
+    
+    pausedPath = [];
+    moving = true;
+    return;
+  }
+
+  // Jika sudah di start point dan ada lastPath
+  if (start && courier.x === start.x && courier.y === start.y && lastPath.length > 0) {
+    courier.path = [...lastPath];
+    // Hitung angle berdasarkan langkah pertama
+    if (courier.path.length > 0) {
+      const next = courier.path[0];
+      const dx = next.x - courier.x;
+      const dy = next.y - courier.y;
+      courier.angle = Math.atan2(dy, dx);
+    }
+    courier.status = "forward";
+    moving = true;
+    return;
+  }
+
+  // Jika tidak dalam kondisi di atas, cari path ke start atau destination
+  if (start) {
+    const toStart = aStar({ x: courier.x, y: courier.y }, start);
+    if (toStart.length > 0) {
+      courier.path = toStart;
+      // Hitung angle berdasarkan langkah pertama
+      if (courier.path.length > 0) {
+        const next = courier.path[0];
+        const dx = next.x - courier.x;
+        const dy = next.y - courier.y;
+        courier.angle = Math.atan2(dy, dx);
+      }
+      courier.status = "toStart";
+      moving = true;
+    } else {
+      alert("Tidak bisa menemukan jalur ke titik awal!");
+    }
+  } else {
+    // Jika tidak ada start (sudah dihapus), langsung ke destination
+    const toDestination = aStar({ x: courier.x, y: courier.y }, destination);
+    if (toDestination.length > 0) {
+      courier.path = toDestination;
+      // Hitung angle berdasarkan langkah pertama
+      if (courier.path.length > 0) {
+        const next = courier.path[0];
+        const dx = next.x - courier.x;
+        const dy = next.y - courier.y;
+        courier.angle = Math.atan2(dy, dx);
+      }
+      courier.status = "forward";
+      moving = true;
+    } else {
+      alert("Tidak bisa menemukan jalur ke tujuan!");
+    }
+  }
+}
+
+function replayCourier() {
+  if (!initialCourierPos || !originalStartPosition || !destination) {
+    alert("Data awal tidak lengkap untuk replay");
+    return;
+  }
+
+  // Reset all states
+  moving = false;
+  frameCounter = 0;
+
+  // Restore original positions
+  start = { x: originalStartPosition.x, y: originalStartPosition.y };
   courier = {
-    x: currentPos.x,
-    y: currentPos.y,
-    path: returnPath,
-    angle: 0,
-    status: "return"
+    x: initialCourierPos.x,
+    y: initialCourierPos.y,
+    path: [],
+    angle: 0, // Tetap mulai dari angle 0 saat replay
+    status: "replayToStart"
   };
+
+  // Calculate fresh paths
+  const pathToStart = aStar(initialCourierPos, start);
+  if (pathToStart.length === 0) {
+    alert("Tidak bisa menemukan jalur ke bendera kuning");
+    return;
+  }
+
+  lastPath = aStar(start, destination);
+  if (lastPath.length === 0) {
+    alert("Tidak bisa menemukan jalur ke bendera merah");
+    return;
+  }
+
+  // Begin movement
+  courier.path = pathToStart;
   moving = true;
-  lastAction = "return";
+}
+
+// In your movement logic (loop function):
+if (courier.status === "toStart" || courier.status === "replayToStart") {
+  setTimeout(() => {
+    start = null; // Remove yellow flag only when starting to move to red
+    const targetPath = lastPath;
+    if (targetPath.length > 0) {
+      courier.path = targetPath;
+      courier.status = "forward";
+      moving = true;
+    }
+  }, 1000);
 }
